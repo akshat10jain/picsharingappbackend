@@ -1,3 +1,5 @@
+const nodemailer = require('nodemailer');
+const bcrypt = require('bcrypt');
 
 const User = require('../Models/User');
 const tokenHelper = require('../helpers/tokenHelper');
@@ -64,7 +66,6 @@ exports.signUp = (req, res) => {
 		});
 };
 
-
 exports.signIn = (req, res) => {
 	let username = req.body.username;
 	let password = req.body.password;
@@ -122,4 +123,115 @@ exports.signIn = (req, res) => {
 		});
 };
 
+exports.forgotPassword = (req, res) => {
+	const email = req.body.email;
 
+	if (!email) {
+		return res.status(500).json({
+			error: true,
+			errors: [{
+				param: "email",
+				msg: "NO_MAIL_ERROR"
+			}],
+			data: {}
+		});
+	}
+	const url = ""; // URL to be clicked by user to set the new password
+	const passwordResetMail = `
+	<body>
+		<div>
+			<h3>Dear ${email},</h3>
+			<p>You requested for a password reset, kindly use this <a href=${url}>link</a> to reset your password</p>
+			<br>
+			<p>Cheers!</p>
+		</div>
+	</body>
+	`;
+
+	// create reusable transporter object using the default SMTP transport
+	let transporter = nodemailer.createTransport({
+		// service: process.env.MAILER_SERVICE_PROVIDER || 'Gmail'
+		host: 'smtp.ethereal.email',
+		port: 587,
+		secure: false,
+		auth: {
+			user: 'ruoz6nej2xmqm2pb@ethereal.email',
+			pass: 'rHV9gZGKHNNBvTttrm'
+		},
+		tls: {
+			rejectUnauthorized: false
+		}
+	});
+
+	// setup email data with unicode symbols
+	let mailOptions = {
+		from: '"Pic Sharing" <picsharingapp@gmail.com>', // sender address
+		to: email, // list of receivers
+		subject: 'Password Reset Mail', // Subject line
+		html: passwordResetMail // html body
+	};
+
+	// send mail with defined transport object
+	transporter.sendMail(mailOptions, (error, info) => {
+		if (error) {
+			return console.log(error);
+		}
+		console.log('Message sent: %s', info.messageId);
+		// Preview only available when sending through an Ethereal account
+		console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+
+		return res.status(200).json({
+			error: false,
+			errors: [{
+				param: "Send Mail",
+				msg: "Mail sent successfully!"
+			}],
+			data: {}
+		});
+		// Message sent: <b658f8ca-6296-ccf4-8306-87d57a0b4321@example.com>
+		// Preview URL: https://ethereal.email/message/WaQKMgKddxQDoou...
+	});
+};
+
+exports.resetPassword = (req, res) => {
+	const email = req.body.email;
+	const password = req.body.password;
+
+	// Create a Salted Hash of the password and store it against the user requesting it.
+	User.checkIfUserExists(email, 'email')
+		.then((result) => {
+			if (result && result._id) {
+				bcrypt.hash(password, 12)
+					.then(hash => {
+						return User.update({ email: email }, { $set: { password: hash } }).exec();
+					})
+					.then((result) => {
+						return res.status(200).json({
+							error: false,
+							param: "password",
+							msg: "Password Updated successfully!"
+						});
+					});
+			}
+			else {
+				return res.status(400).json({
+					error: true,
+					errors: [{
+						param: "username",
+						msg: "USER_ALREADY_EXISTS"
+					}],
+					data: {}
+				});
+			}
+		})
+		.catch((err) => {
+			return res.status(500).json({
+				error: true,
+				errors: [{
+					param: "DB_ERROR",
+					msg: err.message
+				}],
+				data: {}
+			});
+		});
+};
