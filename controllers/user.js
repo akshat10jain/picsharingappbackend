@@ -235,3 +235,8 @@ exports.resetPassword = (req, res) => {
 			});
 		});
 };
+
+
+exports.homepage = (req, res) => {
+    res.render('index')
+}
